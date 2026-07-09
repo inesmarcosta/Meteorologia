@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MeteoPortugal — O Clima em Portugal</title>
+  <style>
+    /* ===================== TOKENS ===================== */
+    :root {
+      --sky:     #0B4F8A;
+      --sky-mid: #1A7EC8;
+      --cloud:   #C8DFF5;
+      --sun:     #F5A623;
+      --storm:   #2C3E50;
+      --text:    #1C2B3A;
+      --muted:   #5A7080;
+      --white:   #FFFFFF;
+      --bg:      #F0F6FB;
+      --card:    #FFFFFF;
+      --border:  #D0E4F2;
+    }
+
+    /* ===================== RESET & BASE ===================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+    a { color: var(--sky-mid); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { display: block; max-width: 100%; }
+
+    /* ===================== NAV ===================== */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--sky);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .nav-brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: .04em;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .nav-brand span.icon { font-size: 1.4rem; }
+    .nav-links {
+      display: flex;
+      gap: 1.6rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--cloud);
+      font-size: .9rem;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--white); text-decoration: none; }
+
+    /* ===================== HERO ===================== */
+    .hero {
+      position: relative;
+      min-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+      padding: 4rem 1.5rem;
+      background: linear-gradient(170deg, var(--sky) 0%, var(--sky-mid) 55%, #5baee0 100%);
+      color: var(--white);
+    }
+
+    /* animated clouds */
+    .clouds {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .cloud-shape {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,.12);
+      animation: drift linear infinite;
+    }
+    .c1 { width: 320px; height: 130px; top: 10%; left: -15%; animation-duration: 28s; }
+    .c2 { width: 200px; height: 90px;  top: 25%; left: -10%; animation-duration: 38s; animation-delay: -12s; }
+    .c3 { width: 280px; height: 110px; top: 60%; left: -18%; animation-duration: 32s; animation-delay: -6s; }
+    .c4 { width: 240px; height: 100px; top: 75%; left: -12%; animation-duration: 22s; animation-delay: -20s; }
+
+    @keyframes drift {
+      from { transform: translateX(0); }
+      to   { transform: translateX(calc(100vw + 350px)); }
+    }
+
+    .hero-eyebrow {
+      font-size: .8rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--cloud);
+      margin-bottom: 1rem;
+    }
+    .hero-title {
+      font-size: clamp(2.4rem, 6vw, 5rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 1.4rem;
+      text-shadow: 0 3px 20px rgba(0,0,0,.25);
+    }
+    .hero-title em {
+      font-style: normal;
+      color: var(--sun);
+    }
+    .hero-sub {
+      max-width: 56ch;
+      font-size: 1.15rem;
+      color: var(--cloud);
+      margin-bottom: 2.5rem;
+    }
+    .hero-cta {
+      display: inline-flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      padding: .75rem 2rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: .95rem;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.2); text-decoration: none; }
+    .btn-primary  { background: var(--sun); color: var(--storm); }
+    .btn-outline  { background: transparent; border: 2px solid var(--cloud); color: var(--white); }
+
+    /* weather strip */
+    .weather-strip {
+      position: absolute;
+      bottom: 0;
+      left: 0; right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      background: rgba(11,79,138,.6);
+      backdrop-filter: blur(10px);
+      padding: .8rem 2rem;
+      flex-wrap: wrap;
+    }
+    .weather-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .4rem 1.2rem;
+      border-right: 1px solid rgba(255,255,255,.2);
+      color: var(--white);
+      font-size: .88rem;
+    }
+    .weather-item:last-child { border-right: none; }
+    .weather-item .label { color: var(--cloud); font-size: .75rem; display: block; }
+    .weather-icon { font-size: 1.5rem; }
+
+    /* ===================== SECTIONS ===================== */
+    section { padding: 5rem 1.5rem; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+    }
+    .eyebrow {
+      display: inline-block;
+      font-size: .75rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--sky-mid);
+      font-weight: 700;
+      margin-bottom: .6rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      font-weight: 800;
+      color: var(--storm);
+      line-height: 1.2;
+    }
+    .section-desc {
+      margin-top: .8rem;
+      color: var(--muted);
+      max-width: 60ch;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ===================== WHAT IS METEOROLOGY ===================== */
+    #o-que-e {
+      background: var(--white);
+    }
+    .intro-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+    .intro-visual {
+      background: linear-gradient(135deg, var(--cloud) 0%, #a8d4f5 100%);
+      border-radius: 20px;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .intro-visual::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 70% 30%, rgba(245,166,35,.15), transparent 60%);
+    }
+    .intro-text h3 { font-size: 1.5rem; font-weight: 700; color: var(--storm); margin-bottom: 1rem; }
+    .intro-text p  { color: var(--muted); margin-bottom: 1rem; }
+    .fact-chips { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.5rem; }
+    .chip {
+      background: var(--cloud);
+      color: var(--sky);
+      font-size: .78rem;
+      font-weight: 600;
+      padding: .35rem .9rem;
+      border-radius: 50px;
+    }
+
+    /* ===================== CLIMATE ZONES ===================== */
+    #climas { background: var(--bg); }
+    .zones-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    .zone-card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 2px 16px rgba(11,79,138,.08);
+      border-top: 4px solid;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .zone-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(11,79,138,.13); }
+    .zone-card.continental { border-color: #e8a838; }
+    .zone-card.mediterr    { border-color: #e05b2b; }
+    .zone-card.atlantico   { border-color: var(--sky-mid); }
+    .zone-icon { font-size: 2.6rem; margin-bottom: 1rem; }
+    .zone-card h3 { font-size: 1.1rem; font-weight: 700; color: var(--storm); margin-bottom: .5rem; }
+    .zone-card p  { font-size: .9rem; color: var(--muted); }
+    .zone-tag {
+      display: inline-block;
+      margin-top: 1rem;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--sky-mid);
+      background: var(--cloud);
+      padding: .25rem .7rem;
+      border-radius: 50px;
+    }
+
+    /* ===================== SEASONS ===================== */
+    #estacoes { background: var(--white); }
+    .seasons-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.2rem;
+    }
+    .season-card {
+      border-radius: 16px;
+      padding: 2rem 1.2rem;
+      text-align: center;
+      color: var(--white);
+      position: relative;
+      overflow: hidden;
+    }
+    .season-card::before {
+      content: attr(data-icon);
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      font-size: 6rem;
+      opacity: .12;
+    }
+    .season-card.primavera { background: linear-gradient(135deg, #43b89c, #2ecc71); }
+    .season-card.verao     { background: linear-gradient(135deg, #f5a623, #f97316); }
+    .season-card.outono    { background: linear-gradient(135deg, #c0392b, #e67e22); }
+    .season-card.inverno   { background: linear-gradient(135deg, #3498db, #1A7EC8); }
+    .season-icon  { font-size: 3rem; margin-bottom: .8rem; }
+    .season-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: .5rem; }
+    .season-card p  { font-size: .85rem; opacity: .9; }
+    .season-temp {
+      margin-top: 1rem;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+    .season-temp span { font-size: .8rem; font-weight: 400; opacity: .8; }
+
+    /* ===================== PHENOMENA ===================== */
+    #fenomenos { background: var(--bg); }
+    .phenomena-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .phenomenon {
+      display: flex;
+      gap: 1.2rem;
+      background: var(--card);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(11,79,138,.07);
+    }
+    .ph-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 12px;
+      background: var(--cloud);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.7rem;
+      flex-shrink: 0;
+    }
+    .ph-body h4 { font-size: 1rem; font-weight: 700; color: var(--storm); margin-bottom: .3rem; }
+    .ph-body p  { font-size: .88rem; color: var(--muted); }
+
+    /* ===================== DATA / STATS ===================== */
+    #dados { background: var(--sky); color: var(--white); }
+    #dados .section-title { color: var(--white); }
+    #dados .eyebrow { color: var(--cloud); }
+    #dados .section-desc { color: var(--cloud); }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+    .stat-card {
+      background: rgba(255,255,255,.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 2rem 1.2rem;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+    .stat-num {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--sun);
+      line-height: 1;
+    }
+    .stat-label { font-size: .85rem; color: var(--cloud); margin-top: .5rem; }
+
+    /* ===================== IPMA HIGHLIGHT ===================== */
+    #ipma { background: var(--white); }
+    .ipma-box {
+      display: flex;
+      gap: 3rem;
+      align-items: center;
+      background: linear-gradient(135deg, var(--cloud) 0%, #daeeff 100%);
+      border-radius: 20px;
+      padding: 3rem;
+    }
+    .ipma-logo-area {
+      min-width: 180px;
+      text-align: center;
+      font-size: 5rem;
+    }
+    .ipma-info h3 { font-size: 1.4rem; font-weight: 800; color: var(--sky); margin-bottom: .8rem; }
+    .ipma-info p  { color: var(--muted); margin-bottom: .8rem; }
+    .ipma-link {
+      display: inline-block;
+      padding: .6rem 1.5rem;
+      background: var(--sky);
+      color: var(--white);
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: .9rem;
+    }
+    .ipma-link:hover { background: var(--sky-mid); text-decoration: none; }
+
+    /* ===================== FOOTER ===================== */
+    footer {
+      background: var(--storm);
+      color: var(--cloud);
+      text-align: center;
+      padding: 2.5rem 1.5rem;
+      font-size: .85rem;
+    }
+    footer strong { color: var(--white); }
+    footer a { color: var(--cloud); }
+
+    /* ===================== RESPONSIVE ===================== */
+    @media (max-width: 900px) {
+      .intro-grid    { grid-template-columns: 1fr; }
+      .zones-grid    { grid-template-columns: 1fr 1fr; }
+      .seasons-grid  { grid-template-columns: 1fr 1fr; }
+      .stats-grid    { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .zones-grid { grid-template-columns: 1fr; }
+      .seasons-grid { grid-template-columns: 1fr; }
+      .phenomena-list { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .ipma-box { flex-direction: column; padding: 2rem; }
+      .weather-strip { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand"><span class="icon">🌤️</span> MeteoPortugal</div>
+  <ul class="nav-links">
+    <li><a href="#o-que-e">O que é</a></li>
+    <li><a href="#climas">Climas</a></li>
+    <li><a href="#estacoes">Estações</a></li>
+    <li><a href="#fenomenos">Fenómenos</a></li>
+    <li><a href="#dados">Dados</a></li>
+    <li><a href="#ipma">IPMA</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="clouds">
+    <div class="cloud-shape c1"></div>
+    <div class="cloud-shape c2"></div>
+    <div class="cloud-shape c3"></div>
+    <div class="cloud-shape c4"></div>
+  </div>
+  <p class="hero-eyebrow">Ciência &amp; Natureza · Portugal</p>
+  <h1 class="hero-title">O Tempo<br>que nos <em>define</em></h1>
+  <p class="hero-sub">Descobre a meteorologia portuguesa — do Douro ao Algarve, dos Açores à Madeira. Climas, fenómenos e curiosidades sobre o país de sol, vento e chuva.</p>
+  <div class="hero-cta">
+    <a href="#o-que-e" class="btn btn-primary">Explorar</a>
+    <a href="#dados"   class="btn btn-outline">Ver estatísticas</a>
+  </div>
+  <div class="weather-strip">
+    <div class="weather-item"><span class="weather-icon">☀️</span><span><span class="label">Faro</span>26 °C</span></div>
+    <div class="weather-item"><span class="weather-icon">⛅</span><span><span class="label">Lisboa</span>22 °C</span></div>
+    <div class="weather-item"><span class="weather-icon">🌧️</span><span><span class="label">Porto</span>17 °C</span></div>
+    <div class="weather-item"><span class="weather-icon">🌬️</span><span><span class="label">Açores</span>19 °C</span></div>
+    <div class="weather-item"><span class="weather-icon">🌤️</span><span><span class="label">Madeira</span>24 °C</span></div>
+  </div>
+</section>
+
+<!-- O QUE É METEOROLOGIA -->
+<section id="o-que-e">
+  <div class="section-inner">
+    <div class="intro-grid">
+      <div class="intro-visual">🌦️</div>
+      <div class="intro-text">
+        <span class="eyebrow">Fundamentos</span>
+        <h3>O que é a Meteorologia?</h3>
+        <p>A meteorologia é a ciência que estuda a atmosfera terrestre e os seus fenómenos — temperatura, pressão, humidade, precipitação e vento. Em Portugal, esta disciplina é especialmente rica devido à diversidade climática do país.</p>
+        <p>A sua aplicação é fundamental para a previsão do tempo, gestão agrícola, segurança marítima e aeronáutica, bem como para o planeamento urbano e a resposta a eventos extremos como secas, cheias e ondas de calor.</p>
+        <p>O <strong>IPMA — Instituto Português do Mar e da Atmosfera</strong> é o organismo oficial responsável pela monitorização e previsão do tempo em Portugal.</p>
+        <div class="fact-chips">
+          <span class="chip">🌡️ Temperatura</span>
+          <span class="chip">💧 Precipitação</span>
+          <span class="chip">🌬️ Vento</span>
+          <span class="chip">☁️ Nebulosidade</span>
+          <span class="chip">⚡ Trovoadas</span>
+          <span class="chip">🌊 Humidade</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CLIMAS DE PORTUGAL -->
+<section id="climas">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow">Diversidade climática</span>
+      <h2 class="section-title">Os Climas de Portugal</h2>
+      <p class="section-desc">Portugal continental e as ilhas apresentam três grandes tipos climáticos, cada um com características únicas.</p>
+    </div>
+    <div class="zones-grid">
+      <div class="zone-card mediterr">
+        <div class="zone-icon">🌞</div>
+        <h3>Clima Mediterrânico</h3>
+        <p>Verões quentes e secos, invernos chuvosos. Predomina no centro e sul de Portugal continental, especialmente no Ribatejo, Alentejo e Algarve.</p>
+        <span class="zone-tag">Ribatejo · Alentejo · Algarve</span>
+      </div>
+      <div class="zone-card atlantico">
+        <div class="zone-icon">🌊</div>
+        <h3>Clima Atlântico</h3>
+        <p>Influência do Oceano Atlântico garante precipitação mais regular ao longo do ano, temperaturas amenas e elevada humidade.</p>
+        <span class="zone-tag">Minho · Douro · Açores</span>
+      </div>
+      <div class="zone-card continental">
+        <div class="zone-icon">❄️</div>
+        <h3>Clima Continental</h3>
+        <p>Amplitude térmica elevada entre verão e inverno. Verões quentes e secos, invernos rigorosos com possibilidade de neve nas serras interiores.</p>
+        <span class="zone-tag">Trás-os-Montes · Beira Interior</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ESTAÇÕES DO ANO -->
+<section id="estacoes">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow">Ao longo do ano</span>
+      <h2 class="section-title">As Quatro Estações</h2>
+      <p class="section-desc">Portugal tem um ciclo sazonal bem marcado, embora com grandes diferenças entre norte e sul.</p>
+    </div>
+    <div class="seasons-grid">
+      <div class="season-card primavera" data-icon="🌸">
+        <div class="season-icon">🌸</div>
+        <h3>Primavera</h3>
+        <p>Março a Maio. Temperaturas amenas, precipitação moderada e florescimento da natureza.</p>
+        <div class="season-temp">15–20°C <span>média</span></div>
+      </div>
+      <div class="season-card verao" data-icon="☀️">
+        <div class="season-icon">☀️</div>
+        <h3>Verão</h3>
+        <p>Junho a Agosto. Época quente e seca, especialmente no centro e sul. Risco de incêndio elevado.</p>
+        <div class="season-temp">25–38°C <span>média</span></div>
+      </div>
+      <div class="season-card outono" data-icon="🍂">
+        <div class="season-icon">🍂</div>
+        <h3>Outono</h3>
+        <p>Setembro a Novembro. Regresso da chuva, temperaturas a descer progressivamente.</p>
+        <div class="season-temp">13–22°C <span>média</span></div>
+      </div>
+      <div class="season-card inverno" data-icon="❄️">
+        <div class="season-icon">❄️</div>
+        <h3>Inverno</h3>
+        <p>Dezembro a Fevereiro. Frio e chuvoso no norte, ameno no sul. Neve nas serras acima dos 800 metros.</p>
+        <div class="season-temp">5–14°C <span>média</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FENÓMENOS METEOROLÓGICOS -->
+<section id="fenomenos">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow">Eventos notáveis</span>
+      <h2 class="section-title">Fenómenos Meteorológicos em Portugal</h2>
+      <p class="section-desc">Portugal está sujeito a vários fenómenos climáticos que influenciam o quotidiano das populações.</p>
+    </div>
+    <div class="phenomena-list">
+      <div class="phenomenon">
+        <div class="ph-icon">🌊</div>
+        <div class="ph-body">
+          <h4>Ondas de Calor</h4>
+          <p>Períodos prolongados de calor extremo, cada vez mais frequentes. A onda de 2003 foi a mais mortífera do século.</p>
+        </div>
+      </div>
+      <div class="phenomenon">
+        <div class="ph-icon">🌧️</div>
+        <div class="ph-body">
+          <h4>Cheias e Inundações</h4>
+          <p>Precipitação intensa em curtos períodos provoca cheias, sobretudo no outono e inverno, nos rios Tejo, Douro e Mondego.</p>
+        </div>
+      </div>
+      <div class="phenomenon">
+        <div class="ph-icon">❄️</div>
+        <div class="ph-body">
+          <h4>Neve nas Serras</h4>
+          <p>A Serra da Estrela é o único local em Portugal continental com neve regular. O ponto mais alto atinge os 1993 m.</p>
+        </div>
+      </div>
+      <div class="phenomenon">
+        <div class="ph-icon">⚡</div>
+        <div class="ph-body">
+          <h4>Trovoadas</h4>
+          <p>Mais frequentes no interior e durante a primavera e outono. Frequentemente associadas a granizo e rajadas fortes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DADOS E ESTATÍSTICAS -->
+<section id="dados">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow">Portugal em números</span>
+      <h2 class="section-title">Dados Climáticos</h2>
+      <p class="section-desc">Alguns valores de referência que caracterizam o clima português.</p>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">3200</div>
+        <div class="stat-label">☀️ Horas de sol por ano (Lisboa) — uma das maiores na Europa</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">1900</div>
+        <div class="stat-label">🌧️ mm de precipitação anuais no Minho (região mais chuvosa)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">47.4°C</div>
+        <div class="stat-label">🌡️ Temperatura máxima registada em Portugal (Amareleja, 2003)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">−16°C</div>
+        <div class="stat-label">❄️ Temperatura mínima registada (Serra da Estrela)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- IPMA -->
+<section id="ipma">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow">Organismo oficial</span>
+      <h2 class="section-title">O IPMA e a Previsão do Tempo</h2>
+    </div>
+    <div class="ipma-box">
+      <div class="ipma-logo-area">🛰️</div>
+      <div class="ipma-info">
+        <h3>Instituto Português do Mar e da Atmosfera</h3>
+        <p>O IPMA é o laboratório do Estado responsável pelo estudo e divulgação das condições meteorológicas, sísmicas e oceanográficas em Portugal. Disponibiliza previsões para os próximos 10 dias, alertas de aviso meteorológico e dados históricos.</p>
+        <p>Para além da meteorologia, o IPMA monitoriza a qualidade do ar, os sismos, o estado do mar e as alterações climáticas. A informação é pública e essencial para a segurança de todos.</p>
+        <a href="https://www.ipma.pt" target="_blank" class="ipma-link">Visitar o IPMA ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p><strong>MeteoPortugal</strong> — Site criado por <strong>Inês Costa</strong></p>
+  <p>UFCD 9963 – Edição Web · FM Jovem + Digital · UX/UI Design</p>
+  <p style="margin-top:.8rem;">Fontes: <a href="https://www.ipma.pt" target="_blank">IPMA</a> · <a href="https://wmo.int/" target="_blank">OMM</a></p>
+</footer>
+
+</body>
+</html>
